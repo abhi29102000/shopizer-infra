@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build Images"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy backend
+        run: |
+          kubectl set image deployment/shopizer-backend \
+            shopizer-backend=ghcr.io/abhi29102000/shopizer:latest \
+            -n shopizer
+          kubectl rollout status deployment/shopizer-backend -n shopizer --timeout=120s
+
+      - name: Deploy storefront
+        run: |
+          kubectl set image deployment/shopizer-storefront \
+            shopizer-storefront=ghcr.io/abhi29102000/shopizer-shop:latest \
+            -n shopizer
+          kubectl rollout status deployment/shopizer-storefront -n shopizer --timeout=60s
+
+      - name: Deploy admin
+        run: |
+          kubectl set image deployment/shopizer-admin \
+            shopizer-admin=ghcr.io/abhi29102000/shopizer-admin:latest \
+            -n shopizer
+          kubectl rollout status deployment/shopizer-admin -n shopizer --timeout=60s

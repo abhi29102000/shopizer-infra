@@ -1,0 +1,89 @@
+name: Build Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_run_id:
+        description: 'shopizer CI run ID'
+        required: true
+      storefront_run_id:
+        description: 'shopizer-shop-reactjs CI run ID'
+        required: true
+      admin_run_id:
+        description: 'shopizer-admin CI run ID'
+        required: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Backend ────────────────────────────────────────────────
+      - name: Download backend JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: shopizer-jar
+          path: backend
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abhi29102000/shopizer
+          run-id: ${{ inputs.backend_run_id }}
+
+      - name: Build backend image
+        run: |
+          cp backend/shopizer.jar sm-shop-context/
+          docker build sm-shop-context/ -f sm-shop-context/Dockerfile \
+            -t ghcr.io/abhi29102000/shopizer:${{ github.sha }} \
+            -t ghcr.io/abhi29102000/shopizer:latest
+
+      # ── Storefront ─────────────────────────────────────────────
+      - name: Download storefront build
+        uses: actions/download-artifact@v4
+        with:
+          name: shopizer-shop-build
+          path: storefront/build
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abhi29102000/shopizer-shop-reactjs
+          run-id: ${{ inputs.storefront_run_id }}
+
+      - name: Build storefront image
+        run: |
+          docker build storefront/ -f dockerfiles/Dockerfile.storefront \
+            -t ghcr.io/abhi29102000/shopizer-shop:${{ github.sha }} \
+            -t ghcr.io/abhi29102000/shopizer-shop:latest
+
+      # ── Admin ──────────────────────────────────────────────────
+      - name: Download admin dist
+        uses: actions/download-artifact@v4
+        with:
+          name: shopizer-admin-dist
+          path: admin/dist
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abhi29102000/shopizer-admin
+          run-id: ${{ inputs.admin_run_id }}
+
+      - name: Build admin image
+        run: |
+          docker build admin/ -f dockerfiles/Dockerfile.admin \
+            -t ghcr.io/abhi29102000/shopizer-admin:${{ github.sha }} \
+            -t ghcr.io/abhi29102000/shopizer-admin:latest
+
+      # ── Push all ───────────────────────────────────────────────
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push all images
+        run: |
+          docker push ghcr.io/abhi29102000/shopizer:${{ github.sha }}
+          docker push ghcr.io/abhi29102000/shopizer:latest
+          docker push ghcr.io/abhi29102000/shopizer-shop:${{ github.sha }}
+          docker push ghcr.io/abhi29102000/shopizer-shop:latest
+          docker push ghcr.io/abhi29102000/shopizer-admin:${{ github.sha }}
+          docker push ghcr.io/abhi29102000/shopizer-admin:latest
