@@ -2,8 +2,8 @@
 set -e
 
 GITHUB_TOKEN="${GITHUB_TOKEN:?Error: GITHUB_TOKEN env variable is not set. Run: export GITHUB_TOKEN=your_token}"
-NAMESPACE="shopizer"
 WORK_DIR="/tmp/shopizer-deploy"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p $WORK_DIR
 
 log() { echo "[$(date '+%H:%M:%S')] $1"; }
@@ -87,33 +87,15 @@ CMD ["/bin/sh", "-c", "envsubst < /usr/share/nginx/html/assets/env.template.js >
 EOF
 docker build $WORK_DIR/admin-ctx -t shopizer-admin:local
 
-# ── Load images into Colima k8s ───────────────────────────────────────────────
-log "Loading images into Colima..."
-for IMG in shopizer-backend:local shopizer-storefront:local shopizer-admin:local; do
-  docker save $IMG | colima ssh -- sudo ctr --address /run/containerd/containerd.sock images import -
-  log "✅ Loaded $IMG"
-done
-
-# ── Update k8s deployments ─────────────────────────────────────────────────────
-log "Deploying to Kubernetes..."
-kubectl set image deployment/shopizer-backend    shopizer-backend=shopizer-backend:local       -n $NAMESPACE
-kubectl set image deployment/shopizer-storefront shopizer-storefront=shopizer-storefront:local -n $NAMESPACE
-kubectl set image deployment/shopizer-admin      shopizer-admin=shopizer-admin:local           -n $NAMESPACE
-
-# Force pods to restart and pull the new local image
-kubectl rollout restart deployment/shopizer-backend    -n $NAMESPACE
-kubectl rollout restart deployment/shopizer-storefront -n $NAMESPACE
-kubectl rollout restart deployment/shopizer-admin      -n $NAMESPACE
-
-log "Waiting for rollouts..."
-kubectl rollout status deployment/shopizer-backend    -n $NAMESPACE --timeout=120s
-kubectl rollout status deployment/shopizer-storefront -n $NAMESPACE --timeout=60s
-kubectl rollout status deployment/shopizer-admin      -n $NAMESPACE --timeout=60s
+# ── Deploy with Docker Compose ─────────────────────────────────────────────────
+log "Deploying with Docker Compose..."
+cd "$SCRIPT_DIR"
+docker compose up -d --force-recreate
 
 log "✅ Deployment complete!"
 echo ""
-kubectl get pods -n $NAMESPACE
+docker compose ps
 echo ""
-echo "Backend:    http://localhost:30080/api/v1/store/DEFAULT"
-echo "Storefront: http://localhost:30300"
-echo "Admin:      http://localhost:30400"
+echo "Backend:    http://localhost:8080/api/v1/store/DEFAULT"
+echo "Storefront: http://localhost:3000"
+echo "Admin:      http://localhost:4200"
