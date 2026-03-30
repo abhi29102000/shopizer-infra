@@ -51,16 +51,16 @@ download_artifact "shopizer-admin"        $ADMIN_RUN      "shopizer-admin-dist" 
 log "Building backend image..."
 mkdir -p $WORK_DIR/backend-ctx/target $WORK_DIR/backend-ctx/files
 cp $WORK_DIR/backend/shopizer.jar $WORK_DIR/backend-ctx/target/
-cp /Users/abhisheksharma/Documents/aiworkshop/shopizer/sm-shop/SALESMANAGER.h2.db $WORK_DIR/backend-ctx/
-cp /Users/abhisheksharma/Documents/aiworkshop/shopizer/sm-shop/Dockerfile $WORK_DIR/backend-ctx/
+curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer/F-createDOc/sm-shop/SALESMANAGER.h2.db" -o $WORK_DIR/backend-ctx/SALESMANAGER.h2.db
+curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer/F-createDOc/sm-shop/Dockerfile" -o $WORK_DIR/backend-ctx/Dockerfile
 docker build $WORK_DIR/backend-ctx -t shopizer-backend:local
 
 log "Building storefront image..."
 mkdir -p $WORK_DIR/storefront-ctx/build $WORK_DIR/storefront-ctx/conf/conf.d
 cp -r $WORK_DIR/storefront/. $WORK_DIR/storefront-ctx/build/
-cp /Users/abhisheksharma/Documents/aiworkshop/shopizer-shop-reactjs/env.sh $WORK_DIR/storefront-ctx/
-cp /Users/abhisheksharma/Documents/aiworkshop/shopizer-shop-reactjs/.env $WORK_DIR/storefront-ctx/
-cp /Users/abhisheksharma/Documents/aiworkshop/shopizer-shop-reactjs/conf/conf.d/default.conf $WORK_DIR/storefront-ctx/conf/conf.d/
+curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer-shop-reactjs/F-createDOc/env.sh" -o $WORK_DIR/storefront-ctx/env.sh
+curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer-shop-reactjs/F-createDOc/.env" -o $WORK_DIR/storefront-ctx/.env
+curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer-shop-reactjs/F-createDOc/conf/conf.d/default.conf" -o $WORK_DIR/storefront-ctx/conf/conf.d/default.conf
 cat > $WORK_DIR/storefront-ctx/Dockerfile <<'EOF'
 FROM nginx:stable-alpine
 RUN rm -rf /etc/nginx/conf.d
@@ -78,7 +78,7 @@ docker build $WORK_DIR/storefront-ctx -t shopizer-storefront:local
 log "Building admin image..."
 mkdir -p $WORK_DIR/admin-ctx/dist
 cp -r $WORK_DIR/admin/. $WORK_DIR/admin-ctx/dist/
-cp /Users/abhisheksharma/Documents/aiworkshop/shopizer-admin/docker/nginx.conf $WORK_DIR/admin-ctx/
+curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer-admin/F-createDOc/docker/nginx.conf" -o $WORK_DIR/admin-ctx/nginx.conf
 cat > $WORK_DIR/admin-ctx/Dockerfile <<'EOF'
 FROM nginx:alpine
 COPY dist /usr/share/nginx/html
