@@ -67,7 +67,15 @@ log "Building backend image..."
 mkdir -p $WORK_DIR/backend-ctx/target $WORK_DIR/backend-ctx/files
 cp $WORK_DIR/backend/shopizer.jar $WORK_DIR/backend-ctx/target/
 curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer/F-createDOc/sm-shop/SALESMANAGER.h2.db" -o $WORK_DIR/backend-ctx/SALESMANAGER.h2.db
-curl -sL "https://raw.githubusercontent.com/abhi29102000/shopizer/F-createDOc/sm-shop/Dockerfile" -o $WORK_DIR/backend-ctx/Dockerfile
+# Use multi-arch compatible base image
+cat > $WORK_DIR/backend-ctx/Dockerfile <<'EOF'
+FROM eclipse-temurin:17-jre
+RUN mkdir /opt/app /files
+COPY target/shopizer.jar /opt/app
+COPY SALESMANAGER.h2.db /
+COPY ./files /files
+CMD ["java", "-jar", "/opt/app/shopizer.jar"]
+EOF
 docker build $WORK_DIR/backend-ctx -t shopizer-backend:local
 
 log "Building storefront image..."
