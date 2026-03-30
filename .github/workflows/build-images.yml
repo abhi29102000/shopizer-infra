@@ -1,9 +1,17 @@
 name: Build Images
 
 on:
-  repository_dispatch:
-    types: [ci-complete]
   workflow_dispatch:
+    inputs:
+      backend_run_id:
+        description: 'shopizer CI run ID'
+        required: true
+      storefront_run_id:
+        description: 'shopizer-shop-reactjs CI run ID'
+        required: true
+      admin_run_id:
+        description: 'shopizer-admin CI run ID'
+        required: true
 
 jobs:
   build-and-push:
@@ -16,41 +24,30 @@ jobs:
 
       # ── Backend ────────────────────────────────────────────────
       - name: Download backend JAR
-        uses: dawidd6/action-download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          github_token: ${{ secrets.INFRA_TOKEN }}
-          repo: abhi29102000/shopizer
-          workflow: ci.yml
           name: shopizer-jar
           path: backend
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abhi29102000/shopizer
+          run-id: ${{ inputs.backend_run_id }}
 
       - name: Build backend image
         run: |
-          mkdir -p sm-shop-context/target
-          cp backend/shopizer.jar sm-shop-context/target/shopizer.jar
-          curl -sL https://raw.githubusercontent.com/abhi29102000/shopizer/F-createDOc/sm-shop/Dockerfile -o sm-shop-context/Dockerfile
-          curl -sL https://raw.githubusercontent.com/abhi29102000/shopizer/F-createDOc/sm-shop/SALESMANAGER.h2.db -o sm-shop-context/SALESMANAGER.h2.db
-          mkdir -p sm-shop-context/files
-          docker build sm-shop-context/ \
+          cp backend/shopizer.jar sm-shop-context/
+          docker build sm-shop-context/ -f sm-shop-context/Dockerfile \
             -t ghcr.io/abhi29102000/shopizer:${{ github.sha }} \
             -t ghcr.io/abhi29102000/shopizer:latest
 
       # ── Storefront ─────────────────────────────────────────────
       - name: Download storefront build
-        uses: dawidd6/action-download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          github_token: ${{ secrets.INFRA_TOKEN }}
-          repo: abhi29102000/shopizer-shop-reactjs
-          workflow: ci.yml
           name: shopizer-shop-build
           path: storefront/build
-
-      - name: Download storefront config files
-        run: |
-          curl -sL https://raw.githubusercontent.com/abhi29102000/shopizer-shop-reactjs/F-createDOc/env.sh -o storefront/env.sh
-          curl -sL https://raw.githubusercontent.com/abhi29102000/shopizer-shop-reactjs/F-createDOc/.env -o storefront/.env
-          mkdir -p storefront/conf
-          curl -sL https://raw.githubusercontent.com/abhi29102000/shopizer-shop-reactjs/F-createDOc/conf/conf.d/default.conf -o storefront/conf/conf.d/default.conf 2>/dev/null || true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abhi29102000/shopizer-shop-reactjs
+          run-id: ${{ inputs.storefront_run_id }}
 
       - name: Build storefront image
         run: |
@@ -60,17 +57,13 @@ jobs:
 
       # ── Admin ──────────────────────────────────────────────────
       - name: Download admin dist
-        uses: dawidd6/action-download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          github_token: ${{ secrets.INFRA_TOKEN }}
-          repo: abhi29102000/shopizer-admin
-          workflow: ci.yml
           name: shopizer-admin-dist
           path: admin/dist
-
-      - name: Download admin config files
-        run: |
-          curl -sL https://raw.githubusercontent.com/abhi29102000/shopizer-admin/F-createDOc/docker/nginx.conf -o admin/nginx.conf
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: abhi29102000/shopizer-admin
+          run-id: ${{ inputs.admin_run_id }}
 
       - name: Build admin image
         run: |
