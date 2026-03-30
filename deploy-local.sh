@@ -113,11 +113,13 @@ docker build $WORK_DIR/admin-ctx -t shopizer-admin:local
 # ── Deploy with Docker Compose ─────────────────────────────────────────────────
 log "Deploying with Docker Compose..."
 cd "$SCRIPT_DIR"
-docker compose up -d --force-recreate
-
-log "✅ Deployment complete!"
-echo ""
-docker compose ps
+if docker compose version &>/dev/null 2>&1; then
+  docker compose up -d --force-recreate
+  docker compose ps
+else
+  docker-compose up -d --force-recreate
+  docker-compose ps
+fi
 echo ""
 echo "Backend:    http://localhost:8080/api/v1/store/DEFAULT"
 echo "Storefront: http://localhost:3000"
