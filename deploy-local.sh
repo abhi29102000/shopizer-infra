@@ -8,6 +8,21 @@ mkdir -p $WORK_DIR
 
 log() { echo "[$(date '+%H:%M:%S')] $1"; }
 
+# ── Pre-flight checks ──────────────────────────────────────────────────────────
+if ! command -v colima &>/dev/null; then
+  echo "❌ colima not found. Install with: brew install colima"; exit 1
+fi
+if ! colima status 2>/dev/null | grep -q "Running"; then
+  log "Colima not running. Starting..."
+  colima start --cpu 4 --memory 8
+fi
+if ! command -v docker &>/dev/null; then
+  echo "❌ docker not found. Install with: brew install docker"; exit 1
+fi
+if ! command -v docker-compose &>/dev/null && ! docker compose version &>/dev/null 2>&1; then
+  echo "❌ docker compose not found. Install with: brew install docker-compose"; exit 1
+fi
+
 # ── Helper: download artifact from GitHub ─────────────────────────────────────
 download_artifact() {
   local REPO=$1 RUN_ID=$2 ARTIFACT_NAME=$3 DEST=$4
