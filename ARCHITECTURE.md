@@ -1,44 +1,43 @@
 # Deployment Architecture — Shopizer on Colima + Kubernetes
 
-## CI/CD Flow
+## Full Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         DEVELOPER                                    │
-│                    git push → GitHub                                 │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-                               ▼
+Developer pushes code
+        │
+        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    GITHUB ACTIONS (CI)                               │
 │                                                                      │
 │  shopizer          shopizer-shop-reactjs      shopizer-admin         │
 │  ─────────         ─────────────────────      ─────────────          │
 │  mvn test          npm test                   npm build              │
-│  mvn package       npm build                  docker build           │
-│  docker build      docker build               docker push → GHCR    │
-│  docker push       docker push → GHCR                               │
+│  mvn package       npm build                  upload dist/           │
+│  upload JAR        upload build/                                     │
 │       │                  │                          │                │
 └───────┼──────────────────┼──────────────────────────┼───────────────┘
         │                  │                          │
         ▼                  ▼                          ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│              GHCR (GitHub Container Registry)                        │
+│              GitHub Actions Artifact Storage                         │
 │                                                                      │
-│  ghcr.io/.../shopizer:sha      ghcr.io/.../shopizer-shop:latest     │
-│  ghcr.io/.../shopizer:latest   ghcr.io/.../shopizer-admin:latest    │
+│  shopizer-jar          shopizer-shop-build    shopizer-admin-dist    │
+│  (shopizer.jar)        (build/ folder)        (dist/ folder)         │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
+                               │  deploy-local.sh
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    GITHUB ACTIONS (CD)                               │
+│                    LOCAL MACHINE                                      │
 │                                                                      │
-│  kubectl set image deployment/shopizer-backend ...                   │
-│  kubectl set image deployment/shopizer-storefront ...                │
-│  kubectl set image deployment/shopizer-admin ...                     │
-│  kubectl rollout status ...                                          │
+│  1. Download artifacts (with progress bar)                           │
+│  2. docker build → shopizer-backend:local                            │
+│                  → shopizer-storefront:local                         │
+│                  → shopizer-admin:local                              │
+│  3. Load images into Colima containerd                               │
+│  4. kubectl set image + rollout restart                              │
 └──────────────────────────────┬──────────────────────────────────────┘
-                               │  KUBECONFIG_DATA secret
+                               │
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    COLIMA (local machine)                            │
@@ -49,8 +48,7 @@
 │  │                                                             │    │
 │  │  ┌──────────────────┐   ┌──────────────────┐               │    │
 │  │  │ shopizer-backend │   │shopizer-storefront│               │    │
-│  │  │ Deployment       │   │Deployment         │               │    │
-│  │  │ replicas: 1      │   │replicas: 1        │               │    │
+│  │  │ image: local     │   │image: local       │               │    │
 │  │  │ port: 8080       │   │port: 80           │               │    │
 │  │  └────────┬─────────┘   └────────┬──────────┘               │    │
 │  │           │                      │                           │    │
@@ -58,17 +56,15 @@
 │  │  │ NodePort :30080  │   │NodePort :30300    │               │    │
 │  │  └──────────────────┘   └───────────────────┘               │    │
 │  │                                                             │    │
-│  │  ┌──────────────────┐                                       │    │
-│  │  │  shopizer-admin  │                                       │    │
-│  │  │  Deployment      │                                       │    │
-│  │  │  replicas: 1     │                                       │    │
-│  │  │  port: 80        │                                       │    │
-│  │  └────────┬─────────┘                                       │    │
-│  │           │                                                 │    │
+│  │  ┌──────────────────┐   ┌──────────────────┐               │    │
+│  │  │  shopizer-admin  │   │     mysql         │               │    │
+│  │  │  image: local    │   │  mysql:8.0        │               │    │
+│  │  │  port: 80        │   │  port: 3306       │               │    │
+│  │  └────────┬─────────┘   └──────────────────┘               │    │
+│  │           │                  (internal only)                │    │
 │  │  ┌────────▼─────────┐                                       │    │
 │  │  │ NodePort :30400  │                                       │    │
 │  │  └──────────────────┘                                       │    │
-│  │                                                             │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
                                │
@@ -76,9 +72,9 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         BROWSER                                      │
 │                                                                      │
-│  localhost:30300  →  Storefront (React)                              │
-│  localhost:30400  →  Admin Panel (Angular)                           │
-│  localhost:30080  →  Backend API (Spring Boot)                       │
+│  localhost:30300  →  Storefront (React + Nginx)                      │
+│  localhost:30400  →  Admin Panel (Angular + Nginx)                   │
+│  localhost:30080  →  Backend API (Spring Boot + MySQL)               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,36 +84,32 @@
 
 ```
 ┌──────────────────────┬────────────────────┬──────────────────────────┐
-│ Component            │ Tech               │ Exposed At               │
+│ Component            │ Tech               │ URL                      │
 ├──────────────────────┼────────────────────┼──────────────────────────┤
 │ shopizer-backend     │ Java 17 Spring Boot│ localhost:30080/api/v1/  │
 │ shopizer-storefront  │ React + Nginx       │ localhost:30300           │
 │ shopizer-admin       │ Angular + Nginx     │ localhost:30400           │
+│ mysql                │ MySQL 8.0          │ internal :3306            │
 └──────────────────────┴────────────────────┴──────────────────────────┘
 ```
 
 ---
 
-## Trigger Flow
+## deploy-local.sh Flow
 
 ```
-push to main
-     │
-     ├── CI runs (test → build → docker push to GHCR)
-     │
-     └── CD triggers on CI success
-              │
-              └── kubectl set image → rolling update → pods replaced
-                       │
-                       ├── success → deploy complete
-                       └── failure → kubectl rollout undo
+export GITHUB_TOKEN=xxx
+bash deploy-local.sh
+        │
+        ├── fetch latest CI run IDs (GitHub API)
+        ├── download shopizer-jar        [##########] 100%
+        ├── download shopizer-shop-build [##########] 100%
+        ├── download shopizer-admin-dist [##########] 100%
+        ├── docker build shopizer-backend:local
+        ├── docker build shopizer-storefront:local
+        ├── docker build shopizer-admin:local
+        ├── load images → Colima containerd
+        ├── kubectl set image (all 3 deployments)
+        ├── kubectl rollout restart
+        └── kubectl rollout status → ✅ done
 ```
-
----
-
-## Key Design Decisions
-
-- **GHCR** — free, integrated with GitHub, no extra credentials beyond `GITHUB_TOKEN`
-- **NodePort** — simplest for local Colima, no cloud load balancer needed
-- **`kubectl set image`** — zero-downtime rolling update per deployment
-- **`KUBECONFIG_DATA` secret** — base64-encoded kubeconfig lets GitHub Actions reach Colima
